@@ -14,7 +14,7 @@ server.on('request', async (req, res) => {
 
   switch (req.method) {
     case 'POST':
-
+/*
       if (pathname.search('/') !== -1) {
          res.statusCode = 400;
          res.end("Error 400") 
@@ -57,7 +57,7 @@ server.on('request', async (req, res) => {
         });     
 
       };  
-
+*/
       break;
 
     default:
