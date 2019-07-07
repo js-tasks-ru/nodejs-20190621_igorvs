@@ -2,6 +2,7 @@ const url = require('url');
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
+const LimitSizeStream = require('./LimitSizeStream');
 
 const server = new http.Server();
 
@@ -10,41 +11,50 @@ server.on('request', async (req, res) => {
 
   const filepath = path.join(__dirname, 'files', pathname);
 
+
   switch (req.method) {
     case 'POST':
 
       if (pathname.search('/') !== -1) {
          res.statusCode = 400;
          res.end("Error 400") 
+         //return
 
       } else {
-         try {
+        const stream = fs.createWriteStream(filepath, {flags: 'wx'});
+        const limitedStream = new LimitSizeStream({ limit: 1000000 });
+        
 
-           stats = fs.lstatSync(filepath);
-           res.statusCode = 409;
-           res.end("Error 409");
- 
-        } catch {
-          
-           let body = '';
- 
-           for await (let chunk of req) {
-               body += chunk;
-            }
+        stream.on('error', err => {
+          if (err.code === 'EEXIST') {
+            res.statusCode = 409;
+            res.end('file already exists');
+          } else {
+            res.statusCode = 500;
+            res.end('error');
 
-           if (Buffer.byteLength(body) > 1000)   {
-             res.statusCode = 413;
-             res.end("Error 413");
+          }
 
-           } else {
-             const wStream = fs.createWriteStream(filepath);
- 
-             wStream.on('error', cleanup);  
-             wStream.write(body);
-             wStream.end(() => {res.end("All ok");});
-           }
-    
-       }
+        });
+
+
+        limitedStream.on('error', () => {
+          res.statusCode = 413;
+          res.end('Not implemented');
+          fs.unlink(filepath, () => {
+            //res.statusCode = 500;
+            //res.end('error');
+
+          });
+        });
+
+        req.pipe(limitedStream).pipe(stream);
+
+
+        stream.on('close', () => {
+          res.statusCode = 201;
+          res.end('ok')
+        });     
 
       };  
 
@@ -55,16 +65,5 @@ server.on('request', async (req, res) => {
       res.end('Not implemented');
   }
 });
-
-function cleanup() {
-  fs.unlink(wStream.path, (err) => {
-    if (err && err.code == 'ENOENT') {
-
-    } else if (err) {
-      throw err;
-    }
-  });
-  wStream.destroy();
-}
 
 module.exports = server;
